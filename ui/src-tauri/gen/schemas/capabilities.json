@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default desktop capability for Sentry","local":true,"windows":["main"],"permissions":["core:default",{"identifier":"shell:allow-spawn","allow":[{"name":"sentry-watcher","sidecar":true}]},{"identifier":"shell:allow-execute","allow":[{"name":"sentry-watcher","sidecar":true}]},"shell:allow-kill"]}}

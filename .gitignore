@@ -1,0 +1,30 @@
+# OS / editor
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local toolchain cache
+.tools/
+
+# Zig build outputs
+watcher-zig/.zig-cache/
+watcher-zig/zig-out/
+
+# Frontend artifacts
+ui/node_modules/
+ui/dist/
+
+# Rust / Tauri artifacts
+ui/src-tauri/target/
+
+# Runtime and perf artifacts
+docs/perf/**/*.csv
+docs/perf/**/*.log
+docs/perf/soak/
+docs/perf/watcher-soak.pid
+docs/perf/watcher-soak-meta.txt
+
+# Generic temp/runtime
+*.pid

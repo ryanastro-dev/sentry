@@ -1,0 +1,12 @@
+.{
+    .name = .watcher_zig,
+    .version = "0.1.0",
+    .fingerprint = 0xbf0355f0d0f8f443,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

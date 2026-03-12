@@ -1,0 +1,24 @@
+{
+  "name": "sentry-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 1420 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 1420 --strictPort",
+    "check": "tsc --noEmit",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.10.1",
+    "svelte": "5.53.10"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.10.1",
+    "@sveltejs/vite-plugin-svelte": "6.2.4",
+    "typescript": "5.9.3",
+    "vite": "7.3.1"
+  }
+}

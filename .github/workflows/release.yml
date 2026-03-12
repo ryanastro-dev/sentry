@@ -1,0 +1,54 @@
+name: release-build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows-release:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Build Zig watcher sidecar
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\build-watcher.ps1
+
+      - name: Build Tauri release
+        working-directory: ui
+        run: npm run tauri:build
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sentry-windows-release
+          if-no-files-found: error
+          path: |
+            ui/src-tauri/target/release/sentry-desktop.exe
+            ui/src-tauri/target/release/bundle/**
+
+      - name: Download uploaded artifacts (smoke check)
+        uses: actions/download-artifact@v8
+        with:
+          name: sentry-windows-release
+          path: artifacts/downloaded
+
+      - name: Verify downloaded artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse artifacts/downloaded | Format-Table FullName,Length -AutoSize
