@@ -17,60 +17,97 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   background: radial-gradient(circle at 15% 20%, #3d2738 0%, #21172a 34%, #15111c 100%);
   color: var(--ink-1);
+  overscroll-behavior: none;
 }
 
 body {
   font-family: "Space Grotesk", "Avenir Next", "Trebuchet MS", sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#app {
+  height: 100%;
+  overflow: hidden;
 }
 
 .page {
-  width: min(1200px, 94vw);
+  width: min(1120px, 95vw);
   margin: 0 auto;
-  padding: 2.2rem 0 3.2rem;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.95rem 0 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
   animation: fade-in 300ms ease-out;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 178, 71, 0.55) rgba(255, 255, 255, 0.08);
+}
+
+.page::-webkit-scrollbar {
+  width: 6px;
+}
+
+.page::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.page::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 178, 71, 0.8), rgba(240, 160, 60, 0.65));
+  border-radius: 999px;
+}
+
+.page::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 193, 108, 0.9), rgba(243, 171, 80, 0.75));
 }
 
 .hero {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 1.4rem 1.4rem 1.6rem;
+  border-radius: 14px;
+  padding: 1rem 1.05rem 1.1rem;
   background: linear-gradient(140deg, rgba(255, 178, 71, 0.15), rgba(41, 26, 55, 0.65));
   backdrop-filter: blur(4px);
 }
 
 .eyebrow {
-  margin: 0 0 0.2rem;
+  margin: 0 0 0.12rem;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--ink-2);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(1.8rem, 2.7vw, 2.8rem);
+  font-size: clamp(1.48rem, 2.25vw, 2.1rem);
   line-height: 1.1;
 }
 
 .subhead {
-  margin: 0.42rem 0 0;
+  margin: 0.28rem 0 0;
   color: var(--ink-2);
+  font-size: 0.95rem;
 }
 
 .hero-actions {
-  margin-top: 1.2rem;
+  margin-top: 0.82rem;
   display: flex;
-  gap: 0.8rem;
+  gap: 0.62rem;
   flex-wrap: wrap;
 }
 
 .btn {
   border: 0;
-  border-radius: 11px;
-  padding: 0.66rem 1rem;
+  border-radius: 9px;
+  padding: 0.52rem 0.86rem;
   font-weight: 700;
   cursor: pointer;
   transition: transform 120ms ease, opacity 120ms ease;
@@ -97,17 +134,17 @@ h1 {
 }
 
 .grid {
-  margin-top: 1rem;
+  margin-top: 0;
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.72rem;
 }
 
 .card {
   background: linear-gradient(160deg, rgba(33, 24, 43, 0.92), rgba(22, 16, 30, 0.95));
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 1rem;
+  border-radius: 13px;
+  padding: 0.8rem;
   grid-column: span 4;
   animation: rise 240ms ease-out;
 }
@@ -117,17 +154,17 @@ h1 {
 }
 
 h2 {
-  margin: 0 0 0.8rem;
-  font-size: 1.02rem;
+  margin: 0 0 0.56rem;
+  font-size: 0.94rem;
   color: var(--ink-2);
 }
 
 .row {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.42rem;
-  font-size: 0.92rem;
+  gap: 0.7rem;
+  margin-top: 0.34rem;
+  font-size: 0.85rem;
 }
 
 .row span {
@@ -143,36 +180,38 @@ h2 {
 }
 
 .current-title {
-  font-size: 1.12rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
 .current-meta {
-  margin-top: 0.25rem;
-  margin-bottom: 0.7rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.5rem;
   color: var(--ink-3);
+  font-size: 0.87rem;
 }
 
 .placeholder {
   color: var(--ink-3);
+  font-size: 0.9rem;
 }
 
 .usage-list {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.52rem;
 }
 
 .usage-head {
   display: flex;
   justify-content: space-between;
-  gap: 0.8rem;
-  font-size: 0.92rem;
+  gap: 0.6rem;
+  font-size: 0.86rem;
 }
 
 .usage-track {
-  margin-top: 0.35rem;
+  margin-top: 0.22rem;
   width: 100%;
-  height: 9px;
+  height: 7px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
@@ -187,12 +226,12 @@ h2 {
 
 .sessions {
   display: grid;
-  gap: 0.68rem;
+  gap: 0.52rem;
 }
 
 .session-item {
   border-left: 2px solid rgba(255, 178, 71, 0.6);
-  padding-left: 0.58rem;
+  padding-left: 0.5rem;
 }
 
 .session-app {
@@ -201,23 +240,24 @@ h2 {
 }
 
 .session-title {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
   color: var(--ink-2);
-  font-size: 0.9rem;
+  font-size: 0.83rem;
 }
 
 .session-meta {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
   color: var(--ink-3);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .error {
-  margin-top: 1rem;
+  margin-top: 0.2rem;
   border-radius: 12px;
   border: 1px solid rgba(255, 111, 111, 0.6);
   background: rgba(120, 22, 22, 0.45);
-  padding: 0.75rem 0.9rem;
+  padding: 0.6rem 0.72rem;
+  font-size: 0.86rem;
 }
 
 @media (max-width: 980px) {

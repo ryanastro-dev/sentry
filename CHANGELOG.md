@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-03-13
+
+### Fixed
+- Prevented desktop-style usage friction by disabling browser-like refresh shortcuts (`F5`, `Ctrl/Cmd+R`), text select-all shortcut, context menu, and drag-select behavior in the app shell.
+- Reduced visual clutter and tightened spacing for a more compact dashboard layout.
+
+### Changed
+- Replaced hidden scrollbar behavior with a thin, theme-aligned scrollbar for better usability while preserving the compact look.
+
 ## [0.1.1] - 2026-03-12
 
 ### Fixed
@@ -26,5 +35,6 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Renamed PowerShell function to approved verb (`Resolve-StableZig`) for script lint compatibility.
 - Added watcher test step in Zig build configuration.
 
-[Unreleased]: https://github.com/ryanastro-dev/sentry/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ryanastro-dev/sentry/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ryanastro-dev/sentry/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ryanastro-dev/sentry/compare/v0.1.0...v0.1.1

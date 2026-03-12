@@ -36,6 +36,26 @@
     return segments[segments.length - 1] || path;
   };
 
+  const preventWebRefresh = (event: KeyboardEvent) => {
+    const key = event.key.toLowerCase();
+    const withCmd = event.ctrlKey || event.metaKey;
+    const isReload = key === "f5" || (withCmd && key === "r");
+    const isHardReload = withCmd && event.shiftKey && key === "r";
+    const isSelectAll = withCmd && key === "a";
+    if (isReload || isHardReload || isSelectAll) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  const preventContextMenu = (event: MouseEvent) => {
+    event.preventDefault();
+  };
+
+  const preventDragSelect = (event: DragEvent) => {
+    event.preventDefault();
+  };
+
   async function refreshStatusOnly() {
     status = await invoke<MonitorStatus>("monitoring_status");
     current = await invoke<CurrentActivity | null>("get_current_activity");
@@ -97,10 +117,17 @@
       void refreshAll();
     }, 2000);
 
+    window.addEventListener("keydown", preventWebRefresh, { capture: true });
+    window.addEventListener("contextmenu", preventContextMenu);
+    window.addEventListener("dragstart", preventDragSelect);
+
     return () => {
       if (refreshTimer) {
         clearInterval(refreshTimer);
       }
+      window.removeEventListener("keydown", preventWebRefresh, { capture: true });
+      window.removeEventListener("contextmenu", preventContextMenu);
+      window.removeEventListener("dragstart", preventDragSelect);
     };
   });
 </script>
@@ -214,7 +241,7 @@
         <p class="placeholder">No timeline entries yet.</p>
       {:else}
         <div class="sessions">
-          {#each sessions.slice(0, 8) as row}
+          {#each sessions.slice(0, 6) as row}
             <div class="session-item">
               <p class="session-app">{shortName(row.exe_path)}</p>
               <p class="session-title">{row.window_title || "(untitled window)"}</p>
