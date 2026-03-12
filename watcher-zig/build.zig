@@ -13,9 +13,6 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe.root_module.link_libc = true;
-    if (target.result.os.tag == .windows) {
-        exe.subsystem = .Windows;
-    }
 
     b.installArtifact(exe);
 
