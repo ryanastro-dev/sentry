@@ -99,10 +99,9 @@ Latest performance references:
 
 ## Release Artifacts
 
-- Windows release executable:
-  - `ui/src-tauri/target/release/sentry-desktop.exe`
-- Windows MSI installer bundle:
-  - `ui/src-tauri/target/release/bundle/msi/*.msi`
+- GitHub draft release assets are published with consistent names:
+  - `sentry-vX.Y.Z-windows-x64.exe`
+  - `sentry-vX.Y.Z-windows-x64.msi`
 
 ## Project Layout
 

@@ -94,16 +94,32 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         run: |
           $tag = $env:TAG_NAME
-          $exe = Resolve-Path "ui/src-tauri/target/release/sentry-desktop.exe"
-          $msiFiles = Get-ChildItem -Path "ui/src-tauri/target/release/bundle/msi" -Filter *.msi -Recurse -ErrorAction SilentlyContinue
-          if (-not $msiFiles) {
+          $exeSource = Resolve-Path "ui/src-tauri/target/release/sentry-desktop.exe"
+          $msiSource = Get-ChildItem -Path "ui/src-tauri/target/release/bundle/msi" -Filter *.msi -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $msiSource) {
             throw "No MSI files found for release upload."
           }
 
-          $assets = @($exe.Path) + ($msiFiles | ForEach-Object { $_.FullName })
+          $releaseAssetDir = Join-Path $PWD "artifacts/release"
+          New-Item -ItemType Directory -Path $releaseAssetDir -Force | Out-Null
+
+          $baseName = "sentry-$tag-windows-x64"
+          $exeAsset = Join-Path $releaseAssetDir "$baseName.exe"
+          $msiAsset = Join-Path $releaseAssetDir "$baseName.msi"
+
+          Copy-Item -Path $exeSource.Path -Destination $exeAsset -Force
+          Copy-Item -Path $msiSource.FullName -Destination $msiAsset -Force
+          $assets = @($exeAsset, $msiAsset)
 
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
+            $existingAssetNames = @(gh release view $tag --json assets --jq ".assets[].name")
+            foreach ($assetName in $existingAssetNames) {
+              if (-not [string]::IsNullOrWhiteSpace($assetName)) {
+                gh release delete-asset $tag $assetName --yes
+              }
+            }
+
             gh release upload $tag @assets --clobber
             gh release edit $tag --draft=true --title "Sentry $tag"
           } else {
