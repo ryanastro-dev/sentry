@@ -35,8 +35,18 @@ function Ensure-StableZig {
     $zip = Join-Path $root ".tools\zig-$expectedVersion.zip"
     $url = "https://ziglang.org/download/$expectedVersion/zig-x86_64-windows-$expectedVersion.zip"
 
-    Write-Host "Downloading Zig $expectedVersion..."
-    Invoke-WebRequest -Uri $url -OutFile $zip
+    if (-not (Test-Path $zip)) {
+        Write-Host "Downloading Zig $expectedVersion..."
+        $oldProgressPreference = $ProgressPreference
+        try {
+            $ProgressPreference = "SilentlyContinue"
+            Invoke-WebRequest -Uri $url -OutFile $zip
+        }
+        finally {
+            $ProgressPreference = $oldProgressPreference
+        }
+    }
+
     Expand-Archive -Path $zip -DestinationPath (Join-Path $root ".tools") -Force
 
     if (-not (Test-Path $zig)) {

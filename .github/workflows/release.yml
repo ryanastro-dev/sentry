@@ -48,7 +48,7 @@ jobs:
 
       - name: Build Zig watcher sidecar
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File .\scripts\build-watcher.ps1
+        run: .\scripts\build-watcher.ps1
 
       - name: Build Tauri release
         working-directory: ui

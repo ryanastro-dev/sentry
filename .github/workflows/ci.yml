@@ -26,7 +26,7 @@ jobs:
 
       - name: Build watcher sidecar
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File .\scripts\build-watcher.ps1
+        run: .\scripts\build-watcher.ps1
 
       - name: Run watcher unit tests
         shell: pwsh

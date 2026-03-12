@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 Write-Host "[1/6] Build watcher (Zig stable 0.15.2)"
-powershell -ExecutionPolicy Bypass -File (Join-Path $root "scripts\build-watcher.ps1")
+& (Join-Path $root "scripts\build-watcher.ps1")
 
 Write-Host "[2/6] Run watcher unit tests"
 & (Join-Path $root ".tools\zig-x86_64-windows-0.15.2\zig.exe") test (Join-Path $root "watcher-zig\src\main.zig")
