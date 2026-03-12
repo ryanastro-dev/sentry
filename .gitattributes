@@ -1,0 +1,2 @@
+# Keep generated TypeScript bindings line endings stable across platforms.
+ui/src/lib/generated/models.ts text eol=lf

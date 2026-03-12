@@ -16,7 +16,7 @@ on:
 
 jobs:
   zig-checks:
-    runs-on: windows-2025
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -39,7 +39,7 @@ jobs:
         run: .\.tools\zig-x86_64-windows-0.15.2\zig.exe test .\watcher-zig\src\main.zig
 
   rust-checks:
-    runs-on: windows-2025
+    runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -48,15 +48,17 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Create sidecar placeholder for Tauri build script
+      - name: Cache Zig toolchain
+        uses: actions/cache@v5
+        with:
+          path: |
+            .tools/zig-0.15.2.zip
+            .tools/zig-x86_64-windows-0.15.2
+          key: zig-windows-x64-0.15.2
+
+      - name: Build watcher sidecar
         shell: pwsh
-        run: |
-          $sidecar = "watcher-zig/zig-out/bin/sentry-watcher-x86_64-pc-windows-msvc.exe"
-          $sidecarDir = Split-Path $sidecar -Parent
-          New-Item -ItemType Directory -Path $sidecarDir -Force | Out-Null
-          if (-not (Test-Path $sidecar)) {
-            New-Item -ItemType File -Path $sidecar -Force | Out-Null
-          }
+        run: .\scripts\build-watcher.ps1
 
       - name: Cache cargo registry
         uses: actions/cache@v5
@@ -72,12 +74,17 @@ jobs:
         working-directory: ui/src-tauri
         run: cargo check
 
+      - name: Verify generated TypeScript models are committed
+        shell: pwsh
+        run: |
+          git diff --exit-code -- ui/src/lib/generated/models.ts
+
       - name: Rust tests
         working-directory: ui/src-tauri
         run: cargo test
 
   ui-checks:
-    runs-on: windows-2025
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - name: Checkout

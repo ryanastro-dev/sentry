@@ -1,43 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
-
-  type MonitorStats = {
-    parsed_events: number;
-    parse_errors: number;
-    db_errors: number;
-    restarts: number;
-    sidecar_failures: number;
-  };
-
-  type MonitorStatus = {
-    running: boolean;
-    started_at_ms: number | null;
-    stats: MonitorStats;
-  };
-
-  type CurrentActivity = {
-    started_at_ms: number;
-    pid: number;
-    hwnd: string;
-    exe_path: string;
-    window_title: string;
-  };
-
-  type SessionRow = {
-    exe_path: string;
-    window_title: string;
-    start_unix_ms: number;
-    end_unix_ms: number;
-    duration_ms: number;
-  };
-
-  type UsageRow = {
-    exe_path: string;
-    app_name: string;
-    total_duration_ms: number;
-    session_count: number;
-  };
+  import type { CurrentActivity, MonitorStatus, SessionRow, UsageRow } from "./lib/models";
 
   let status: MonitorStatus | null = null;
   let current: CurrentActivity | null = null;
@@ -46,10 +10,12 @@
   let errorMessage = "";
   let isStarting = false;
   let isStopping = false;
+  let isInitialLoad = true;
+  let refreshInFlight = false;
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-  const usageMax = () => usage.reduce((max, row) => Math.max(max, row.total_duration_ms), 0);
+  $: maxUsage = usage.reduce((max, row) => Math.max(max, row.total_duration_ms), 0);
 
   const formatDuration = (ms: number): string => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -84,12 +50,18 @@
   }
 
   async function refreshAll() {
+    if (refreshInFlight) {
+      return;
+    }
+    refreshInFlight = true;
     try {
-      await refreshStatusOnly();
-      await refreshData();
+      await Promise.all([refreshStatusOnly(), refreshData()]);
       errorMessage = "";
     } catch (error) {
       errorMessage = String(error);
+    } finally {
+      refreshInFlight = false;
+      isInitialLoad = false;
     }
   }
 
@@ -97,6 +69,7 @@
     try {
       isStarting = true;
       status = await invoke<MonitorStatus>("start_monitoring");
+      errorMessage = "";
       await refreshAll();
     } catch (error) {
       errorMessage = String(error);
@@ -109,6 +82,7 @@
     try {
       isStopping = true;
       status = await invoke<MonitorStatus>("stop_monitoring");
+      errorMessage = "";
       await refreshAll();
     } catch (error) {
       errorMessage = String(error);
@@ -208,7 +182,9 @@
   <section class="grid">
     <article class="card wide">
       <h2>Top Usage (Last 24h)</h2>
-      {#if usage.length === 0}
+      {#if isInitialLoad}
+        <p class="placeholder">Loading usage data...</p>
+      {:else if usage.length === 0}
         <p class="placeholder">No usage data yet.</p>
       {:else}
         <div class="usage-list">
@@ -221,9 +197,7 @@
               <div class="usage-track">
                 <div
                   class="usage-fill"
-                  style={`width: ${
-                    usageMax() > 0 ? Math.max(2, Math.round((row.total_duration_ms / usageMax()) * 100)) : 0
-                  }%`}
+                  style={`width: ${maxUsage > 0 ? Math.max(2, Math.round((row.total_duration_ms / maxUsage) * 100)) : 0}%`}
                 ></div>
               </div>
             </div>
@@ -234,7 +208,9 @@
 
     <article class="card">
       <h2>Recent Sessions</h2>
-      {#if sessions.length === 0}
+      {#if isInitialLoad}
+        <p class="placeholder">Loading recent sessions...</p>
+      {:else if sessions.length === 0}
         <p class="placeholder">No timeline entries yet.</p>
       {:else}
         <div class="sessions">

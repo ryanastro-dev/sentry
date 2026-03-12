@@ -1,7 +1,7 @@
 mod db;
 mod models;
 
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use db::Database;
@@ -10,8 +10,8 @@ use models::{
     UsageRow,
 };
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_shell::{process::CommandEvent, ShellExt};
-use tokio::sync::watch;
+use tauri_plugin_shell::{ShellExt, process::CommandEvent};
+use tokio::sync::{Mutex, RwLock, watch};
 
 struct MonitorHandle {
     stop_tx: watch::Sender<bool>,
@@ -33,38 +33,41 @@ fn now_unix_ms() -> i64 {
         .unwrap_or(0)
 }
 
-fn with_stats<F>(stats: &Arc<Mutex<MonitorStats>>, update: F)
+async fn with_stats<F>(stats: &Arc<Mutex<MonitorStats>>, update: F)
 where
     F: FnOnce(&mut MonitorStats),
 {
-    if let Ok(mut s) = stats.lock() {
-        update(&mut s);
-    }
+    let mut s = stats.lock().await;
+    update(&mut s);
 }
 
-fn increment_parse_error(stats: &Arc<Mutex<MonitorStats>>) {
-    with_stats(stats, |s| s.parse_errors = s.parse_errors.saturating_add(1));
+async fn increment_parse_error(stats: &Arc<Mutex<MonitorStats>>) {
+    with_stats(stats, |s| s.parse_errors = s.parse_errors.saturating_add(1)).await;
 }
 
-fn increment_db_error(stats: &Arc<Mutex<MonitorStats>>) {
-    with_stats(stats, |s| s.db_errors = s.db_errors.saturating_add(1));
+async fn increment_db_error(stats: &Arc<Mutex<MonitorStats>>) {
+    with_stats(stats, |s| s.db_errors = s.db_errors.saturating_add(1)).await;
 }
 
-fn increment_parsed_event(stats: &Arc<Mutex<MonitorStats>>) {
-    with_stats(stats, |s| s.parsed_events = s.parsed_events.saturating_add(1));
+async fn increment_parsed_event(stats: &Arc<Mutex<MonitorStats>>) {
+    with_stats(stats, |s| {
+        s.parsed_events = s.parsed_events.saturating_add(1)
+    })
+    .await;
 }
 
-fn increment_restarts(stats: &Arc<Mutex<MonitorStats>>) {
-    with_stats(stats, |s| s.restarts = s.restarts.saturating_add(1));
+async fn increment_restarts(stats: &Arc<Mutex<MonitorStats>>) {
+    with_stats(stats, |s| s.restarts = s.restarts.saturating_add(1)).await;
 }
 
-fn increment_sidecar_failures(stats: &Arc<Mutex<MonitorStats>>) {
+async fn increment_sidecar_failures(stats: &Arc<Mutex<MonitorStats>>) {
     with_stats(stats, |s| {
         s.sidecar_failures = s.sidecar_failures.saturating_add(1)
-    });
+    })
+    .await;
 }
 
-fn process_event_line(
+async fn process_event_line(
     line: &str,
     db: &Arc<Mutex<Database>>,
     current: &Arc<RwLock<Option<CurrentSession>>>,
@@ -78,7 +81,7 @@ fn process_event_line(
     let parsed = match serde_json::from_str::<SidecarFocusEvent>(trimmed) {
         Ok(value) => value,
         Err(_) => {
-            increment_parse_error(stats);
+            increment_parse_error(stats).await;
             return;
         }
     };
@@ -87,31 +90,19 @@ fn process_event_line(
         return;
     }
 
-    let mut current_guard = match current.write() {
-        Ok(lock) => lock,
-        Err(_) => {
-            increment_db_error(stats);
-            return;
-        }
-    };
-    let mut db_guard = match db.lock() {
-        Ok(lock) => lock,
-        Err(_) => {
-            increment_db_error(stats);
-            return;
-        }
-    };
+    let mut current_guard = current.write().await;
+    let mut db_guard = db.lock().await;
 
     match db_guard.ingest_focus_event(&parsed, &mut current_guard) {
-        Ok(_) => increment_parsed_event(stats),
+        Ok(_) => increment_parsed_event(stats).await,
         Err(e) => {
             eprintln!("[sentry][db] ingest failed: {e}");
-            increment_db_error(stats);
+            increment_db_error(stats).await;
         }
     }
 }
 
-fn consume_stdout_bytes(
+async fn consume_stdout_bytes(
     bytes: &[u8],
     buffer: &mut String,
     db: &Arc<Mutex<Database>>,
@@ -123,11 +114,11 @@ fn consume_stdout_bytes(
         let line = buffer[..newline_index].trim_end_matches('\r').to_string();
         let rest = buffer[(newline_index + 1)..].to_string();
         *buffer = rest;
-        process_event_line(&line, db, current, stats);
+        process_event_line(&line, db, current, stats).await;
     }
 }
 
-fn flush_stdout_tail(
+async fn flush_stdout_tail(
     buffer: &mut String,
     db: &Arc<Mutex<Database>>,
     current: &Arc<RwLock<Option<CurrentSession>>>,
@@ -135,7 +126,7 @@ fn flush_stdout_tail(
 ) {
     let tail = buffer.trim();
     if !tail.is_empty() {
-        process_event_line(tail, db, current, stats);
+        process_event_line(tail, db, current, stats).await;
     }
     buffer.clear();
 }
@@ -148,6 +139,7 @@ async fn run_monitor_loop(
     stats: Arc<Mutex<MonitorStats>>,
 ) {
     let mut restart_attempt: u64 = 0;
+    let stable_reset_after = Duration::from_secs(60);
 
     loop {
         if *stop_rx.borrow() {
@@ -158,7 +150,7 @@ async fn run_monitor_loop(
             Ok(cmd) => cmd,
             Err(e) => {
                 eprintln!("[sentry][monitor] sidecar config failed: {e}");
-                increment_sidecar_failures(&stats);
+                increment_sidecar_failures(&stats).await;
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 continue;
             }
@@ -168,26 +160,32 @@ async fn run_monitor_loop(
             Ok(value) => value,
             Err(e) => {
                 eprintln!("[sentry][monitor] sidecar spawn failed: {e}");
-                increment_sidecar_failures(&stats);
+                increment_sidecar_failures(&stats).await;
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 continue;
             }
         };
         let mut buffer = String::new();
+        let stable_deadline = tokio::time::Instant::now() + stable_reset_after;
+        let mut backoff_reset = false;
 
         loop {
             tokio::select! {
+                _ = tokio::time::sleep_until(stable_deadline), if !backoff_reset => {
+                    restart_attempt = 0;
+                    backoff_reset = true;
+                }
                 changed = stop_rx.changed() => {
                     if changed.is_err() || *stop_rx.borrow() {
                         let _ = child.kill();
-                        flush_stdout_tail(&mut buffer, &db, &current, &stats);
+                        flush_stdout_tail(&mut buffer, &db, &current, &stats).await;
                         return;
                     }
                 }
                 event = rx.recv() => {
                     match event {
                         Some(CommandEvent::Stdout(bytes)) => {
-                            consume_stdout_bytes(&bytes, &mut buffer, &db, &current, &stats);
+                            consume_stdout_bytes(&bytes, &mut buffer, &db, &current, &stats).await;
                         }
                         Some(CommandEvent::Stderr(bytes)) => {
                             let text = String::from_utf8_lossy(&bytes).trim().to_string();
@@ -196,17 +194,17 @@ async fn run_monitor_loop(
                             }
                         }
                         Some(CommandEvent::Terminated(status)) => {
-                            flush_stdout_tail(&mut buffer, &db, &current, &stats);
+                            flush_stdout_tail(&mut buffer, &db, &current, &stats).await;
                             eprintln!("[sentry][monitor] watcher terminated: {status:?}");
-                            increment_restarts(&stats);
+                            increment_restarts(&stats).await;
                             restart_attempt = restart_attempt.saturating_add(1);
                             let backoff_secs = (1u64 << restart_attempt.min(5)).min(30);
                             tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
                             break;
                         }
                         None => {
-                            flush_stdout_tail(&mut buffer, &db, &current, &stats);
-                            increment_restarts(&stats);
+                            flush_stdout_tail(&mut buffer, &db, &current, &stats).await;
+                            increment_restarts(&stats).await;
                             restart_attempt = restart_attempt.saturating_add(1);
                             let backoff_secs = (1u64 << restart_attempt.min(5)).min(30);
                             tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
@@ -220,37 +218,32 @@ async fn run_monitor_loop(
     }
 }
 
-fn build_status(state: &AppState) -> Result<MonitorStatus, String> {
+async fn build_status(state: &AppState) -> MonitorStatus {
     let running_started_at = state
         .monitor
         .lock()
-        .map_err(|_| "monitor lock poisoned".to_string())?
+        .await
         .as_ref()
         .map(|handle| handle.started_at_ms);
 
-    let stats = state
-        .stats
-        .lock()
-        .map_err(|_| "stats lock poisoned".to_string())?
-        .clone();
+    let stats = state.stats.lock().await.clone();
 
-    Ok(MonitorStatus {
+    MonitorStatus {
         running: running_started_at.is_some(),
         started_at_ms: running_started_at,
         stats,
-    })
+    }
 }
 
 #[tauri::command]
-async fn start_monitoring(app: AppHandle, state: State<'_, AppState>) -> Result<MonitorStatus, String> {
-    {
-        let monitor_guard = state
-            .monitor
-            .lock()
-            .map_err(|_| "monitor lock poisoned".to_string())?;
-        if monitor_guard.is_some() {
-            return build_status(&state);
-        }
+async fn start_monitoring(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<MonitorStatus, String> {
+    let mut monitor_guard = state.monitor.lock().await;
+    if monitor_guard.is_some() {
+        drop(monitor_guard);
+        return Ok(build_status(&state).await);
     }
 
     let (stop_tx, stop_rx) = watch::channel(false);
@@ -262,26 +255,20 @@ async fn start_monitoring(app: AppHandle, state: State<'_, AppState>) -> Result<
         state.stats.clone(),
     ));
 
-    let mut monitor_guard = state
-        .monitor
-        .lock()
-        .map_err(|_| "monitor lock poisoned".to_string())?;
     *monitor_guard = Some(MonitorHandle {
         stop_tx,
         task,
         started_at_ms: now_unix_ms(),
     });
+    drop(monitor_guard);
 
-    build_status(&state)
+    Ok(build_status(&state).await)
 }
 
 #[tauri::command]
 async fn stop_monitoring(state: State<'_, AppState>) -> Result<MonitorStatus, String> {
     let maybe_handle = {
-        let mut monitor_guard = state
-            .monitor
-            .lock()
-            .map_err(|_| "monitor lock poisoned".to_string())?;
+        let mut monitor_guard = state.monitor.lock().await;
         monitor_guard.take()
     };
 
@@ -291,61 +278,51 @@ async fn stop_monitoring(state: State<'_, AppState>) -> Result<MonitorStatus, St
     }
 
     let maybe_current = {
-        let mut current_guard = state
-            .current
-            .write()
-            .map_err(|_| "current lock poisoned".to_string())?;
+        let mut current_guard = state.current.write().await;
         current_guard.take()
     };
 
     if let Some(current) = maybe_current {
-        let mut db_guard = state
-            .db
-            .lock()
-            .map_err(|_| "db lock poisoned".to_string())?;
+        let mut db_guard = state.db.lock().await;
         db_guard
             .close_current_session(&current, now_unix_ms())
             .map_err(|e| format!("close session failed: {e}"))?;
     }
 
-    build_status(&state)
+    Ok(build_status(&state).await)
 }
 
 #[tauri::command]
-fn monitoring_status(state: State<'_, AppState>) -> Result<MonitorStatus, String> {
-    build_status(&state)
+async fn monitoring_status(state: State<'_, AppState>) -> Result<MonitorStatus, String> {
+    Ok(build_status(&state).await)
 }
 
 #[tauri::command]
-fn get_current_activity(state: State<'_, AppState>) -> Result<Option<CurrentActivity>, String> {
-    let current = state
-        .current
-        .read()
-        .map_err(|_| "current lock poisoned".to_string())?;
+async fn get_current_activity(
+    state: State<'_, AppState>,
+) -> Result<Option<CurrentActivity>, String> {
+    let current = state.current.read().await;
     Ok(current.as_ref().map(CurrentActivity::from))
 }
 
 #[tauri::command]
-fn get_recent_sessions(state: State<'_, AppState>, limit: Option<u32>) -> Result<Vec<SessionRow>, String> {
-    let db_guard = state
-        .db
-        .lock()
-        .map_err(|_| "db lock poisoned".to_string())?;
+async fn get_recent_sessions(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> Result<Vec<SessionRow>, String> {
+    let db_guard = state.db.lock().await;
     db_guard
         .recent_sessions(limit.unwrap_or(200))
         .map_err(|e| format!("query sessions failed: {e}"))
 }
 
 #[tauri::command]
-fn get_usage_summary(
+async fn get_usage_summary(
     state: State<'_, AppState>,
     since_unix_ms: Option<i64>,
     limit: Option<u32>,
 ) -> Result<Vec<UsageRow>, String> {
-    let db_guard = state
-        .db
-        .lock()
-        .map_err(|_| "db lock poisoned".to_string())?;
+    let db_guard = state.db.lock().await;
     db_guard
         .usage_since(
             since_unix_ms.unwrap_or_else(|| now_unix_ms() - 86_400_000),

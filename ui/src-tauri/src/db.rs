@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 use crate::models::{CurrentSession, SessionRow, SidecarFocusEvent, UsageRow};
 
@@ -55,6 +55,7 @@ impl Database {
 
             CREATE INDEX IF NOT EXISTS idx_focus_events_ts ON focus_events(ts_unix_ms DESC);
             CREATE INDEX IF NOT EXISTS idx_sessions_end ON sessions(end_unix_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_sessions_app ON sessions(app_id);
             "#,
         )?;
 
@@ -200,7 +201,7 @@ impl Database {
 fn upsert_app(tx: &rusqlite::Transaction<'_>, exe_path: &str, name: &str) -> rusqlite::Result<i64> {
     tx.execute(
         "INSERT INTO apps (exe_path, name) VALUES (?1, ?2)
-         ON CONFLICT(exe_path) DO UPDATE SET name = excluded.name",
+         ON CONFLICT(exe_path) DO NOTHING",
         params![exe_path, name],
     )?;
 
@@ -211,7 +212,11 @@ fn upsert_app(tx: &rusqlite::Transaction<'_>, exe_path: &str, name: &str) -> rus
     )
 }
 
-fn upsert_window(tx: &rusqlite::Transaction<'_>, app_id: i64, title: &str) -> rusqlite::Result<i64> {
+fn upsert_window(
+    tx: &rusqlite::Transaction<'_>,
+    app_id: i64,
+    title: &str,
+) -> rusqlite::Result<i64> {
     tx.execute(
         "INSERT INTO windows (app_id, title) VALUES (?1, ?2)
          ON CONFLICT(app_id, title) DO NOTHING",
@@ -251,19 +256,18 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    fn temp_db_path(name: &str) -> PathBuf {
-        let mut path = std::env::temp_dir();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        path.push(format!("sentry-{name}-{now}.db"));
-        path
+    fn temp_db_path(name: &str) -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::Builder::new()
+            .prefix(&format!("sentry-{name}-"))
+            .tempdir()
+            .expect("create temp dir");
+        let path = dir.path().join("sentry.db");
+        (dir, path)
     }
 
     #[test]
     fn ingest_focus_events_creates_session() {
-        let path = temp_db_path("ingest");
+        let (_tmp, path) = temp_db_path("ingest");
         let mut db = Database::open(&path).expect("db open");
         let mut current = None;
 
@@ -294,13 +298,11 @@ mod tests {
         assert_eq!(sessions[0].duration_ms, 3_000);
         assert_eq!(sessions[0].start_unix_ms, 1_000);
         assert_eq!(sessions[0].end_unix_ms, 4_000);
-
-        let _ = std::fs::remove_file(path);
     }
 
     #[test]
     fn close_current_session_persists_duration() {
-        let path = temp_db_path("close");
+        let (_tmp, path) = temp_db_path("close");
         let mut db = Database::open(&path).expect("db open");
         let mut current = None;
 
@@ -326,7 +328,5 @@ mod tests {
         let usage = db.usage_since(0, 10).expect("usage");
         assert_eq!(usage.len(), 1);
         assert_eq!(usage[0].total_duration_ms, 6_000);
-
-        let _ = std::fs::remove_file(path);
     }
 }

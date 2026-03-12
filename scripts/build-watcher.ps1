@@ -18,7 +18,7 @@ function Get-ZigVersion([string]$exePath) {
     }
 }
 
-function Ensure-StableZig {
+function Resolve-StableZig {
     if ((Test-Path $zig) -and (Get-ZigVersion $zig) -eq $expectedVersion) {
         return $zig
     }
@@ -55,7 +55,7 @@ function Ensure-StableZig {
     return $zig
 }
 
-$zig = Ensure-StableZig
+$zig = Resolve-StableZig
 $version = Get-ZigVersion $zig
 if ($version -ne $expectedVersion) {
     throw "Expected Zig $expectedVersion, got $version from $zig"

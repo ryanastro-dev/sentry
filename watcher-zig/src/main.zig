@@ -80,6 +80,28 @@ fn computePrevDuration(now_ms: i64, previous_started_ms: i64) i64 {
     return @max(0, now_ms - previous_started_ms);
 }
 
+fn queryProcessExePathUtf8(allocator: std.mem.Allocator, process: c.HANDLE) ![]u8 {
+    var path_utf16_small: [1024]u16 = [_]u16{0} ** 1024;
+    var path_len: c.DWORD = @intCast(path_utf16_small.len);
+    if (c.QueryFullProcessImageNameW(process, 0, @ptrCast(&path_utf16_small[0]), &path_len) != 0 and path_len > 0) {
+        return utf16SliceToUtf8Alloc(allocator, path_utf16_small[0..@as(usize, @intCast(path_len))]);
+    }
+
+    const last_error = c.GetLastError();
+    if (last_error == c.ERROR_INSUFFICIENT_BUFFER and path_len > path_utf16_small.len and path_len <= 32768) {
+        const needed_len: usize = @intCast(path_len);
+        const path_utf16_dynamic = try allocator.alloc(u16, needed_len);
+        defer allocator.free(path_utf16_dynamic);
+
+        var dynamic_path_len: c.DWORD = @intCast(path_utf16_dynamic.len);
+        if (c.QueryFullProcessImageNameW(process, 0, path_utf16_dynamic.ptr, &dynamic_path_len) != 0 and dynamic_path_len > 0) {
+            return utf16SliceToUtf8Alloc(allocator, path_utf16_dynamic[0..@as(usize, @intCast(dynamic_path_len))]);
+        }
+    }
+
+    return allocator.dupe(u8, "");
+}
+
 fn captureSnapshot(allocator: std.mem.Allocator) !Snapshot {
     const hwnd = c.GetForegroundWindow();
     const hwnd_as_usize: usize = if (hwnd != null) @intFromPtr(hwnd) else 0;
@@ -106,13 +128,8 @@ fn captureSnapshot(allocator: std.mem.Allocator) !Snapshot {
         const process = c.OpenProcess(c.PROCESS_QUERY_LIMITED_INFORMATION, c.FALSE, pid_raw);
         if (process != null) {
             defer _ = c.CloseHandle(process);
-
-            var path_utf16: [32768]u16 = [_]u16{0} ** 32768;
-            var path_len: c.DWORD = @intCast(path_utf16.len);
-            if (c.QueryFullProcessImageNameW(process, 0, @ptrCast(&path_utf16[0]), &path_len) != 0 and path_len > 0) {
-                allocator.free(exe_utf8);
-                exe_utf8 = try utf16SliceToUtf8Alloc(allocator, path_utf16[0..@as(usize, @intCast(path_len))]);
-            }
+            allocator.free(exe_utf8);
+            exe_utf8 = try queryProcessExePathUtf8(allocator, process);
         }
     }
 
@@ -135,7 +152,10 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const stdout = std.fs.File.stdout().deprecatedWriter();
+    const stdout_file = std.fs.File.stdout();
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_writer = stdout_file.writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
 
     var previous_hwnd: usize = 0;
     var previous_title: []u8 = try allocator.dupe(u8, "");
@@ -153,7 +173,11 @@ pub fn main() !void {
             continue;
         }
 
-        var snapshot = try captureSnapshot(allocator);
+        var snapshot = captureSnapshot(allocator) catch |err| {
+            std.log.err("captureSnapshot failed: {s}", .{@errorName(err)});
+            std.Thread.sleep(poll_interval_ns);
+            continue;
+        };
         defer snapshot.deinit(allocator);
         last_fallback_poll_ms = now_ms;
 
@@ -180,6 +204,7 @@ pub fn main() !void {
             }, .{}, &out.writer);
             try stdout.writeAll(out.written());
             try stdout.writeAll("\n");
+            try stdout.flush();
 
             allocator.free(previous_title);
             previous_title = try allocator.dupe(u8, snapshot.window_title);
