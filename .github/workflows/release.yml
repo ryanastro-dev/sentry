@@ -9,6 +9,7 @@ on:
 jobs:
   windows-release:
     runs-on: windows-2025
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -17,9 +18,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tools/zig-0.15.2.zip
+            .tools/zig-x86_64-windows-0.15.2
+          key: zig-windows-x64-0.15.2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('ui/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Install frontend dependencies
         working-directory: ui
@@ -33,6 +54,15 @@ jobs:
         working-directory: ui
         run: npm run tauri:build
 
+      - name: Verify MSI output
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Path ui/src-tauri/target/release/bundle/msi -Filter *.msi -Recurse -ErrorAction SilentlyContinue
+          if (-not $msi) {
+              throw "MSI artifact was not generated."
+          }
+          $msi | Format-Table FullName,Length -AutoSize
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -40,7 +70,7 @@ jobs:
           if-no-files-found: error
           path: |
             ui/src-tauri/target/release/sentry-desktop.exe
-            ui/src-tauri/target/release/bundle/**
+            ui/src-tauri/target/release/bundle/msi/**/*.msi
 
       - name: Download uploaded artifacts (smoke check)
         uses: actions/download-artifact@v8

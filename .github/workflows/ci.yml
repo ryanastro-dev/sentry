@@ -9,8 +9,60 @@ on:
   workflow_dispatch:
 
 jobs:
-  checks:
+  zig-checks:
     runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tools/zig-0.15.2.zip
+            .tools/zig-x86_64-windows-0.15.2
+          key: zig-windows-x64-0.15.2
+
+      - name: Build watcher sidecar
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\build-watcher.ps1
+
+      - name: Run watcher unit tests
+        shell: pwsh
+        run: .\.tools\zig-x86_64-windows-0.15.2\zig.exe test .\watcher-zig\src\main.zig
+
+  rust-checks:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('ui/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Rust check
+        working-directory: ui/src-tauri
+        run: cargo check
+
+      - name: Rust tests
+        working-directory: ui/src-tauri
+        run: cargo test
+
+  ui-checks:
+    runs-on: windows-2025
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -19,14 +71,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: ui
         run: npm ci
 
-      - name: Run local checks script
-        shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File .\scripts\run-checks.ps1
+      - name: UI typecheck
+        working-directory: ui
+        run: npm run check
+
+      - name: UI production build
+        working-directory: ui
+        run: npm run build

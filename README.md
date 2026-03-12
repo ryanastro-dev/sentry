@@ -101,8 +101,8 @@ Latest performance references:
 
 - Windows release executable:
   - `ui/src-tauri/target/release/sentry-desktop.exe`
-- If bundle targets are enabled in Tauri config, installer outputs are under:
-  - `ui/src-tauri/target/release/bundle/`
+- Windows MSI installer bundle:
+  - `ui/src-tauri/target/release/bundle/msi/*.msi`
 
 ## Project Layout
 

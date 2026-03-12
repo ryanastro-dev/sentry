@@ -21,7 +21,13 @@
     ]
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "msi"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "externalBin": [
       "../../watcher-zig/zig-out/bin/sentry-watcher"
     ]
