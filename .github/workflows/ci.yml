@@ -42,6 +42,16 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Create sidecar placeholder for Tauri build script
+        shell: pwsh
+        run: |
+          $sidecar = "watcher-zig/zig-out/bin/sentry-watcher-x86_64-pc-windows-msvc.exe"
+          $sidecarDir = Split-Path $sidecar -Parent
+          New-Item -ItemType Directory -Path $sidecarDir -Force | Out-Null
+          if (-not (Test-Path $sidecar)) {
+            New-Item -ItemType File -Path $sidecar -Force | Out-Null
+          }
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
