@@ -4,7 +4,7 @@
 
 ### Low-Overhead Windows Activity Monitor
 
-*Zig sidecar watcher • Rust host • SQLite persistence • Svelte dashboard*
+*Silent Pulse of Productivity*
 
 <br/>
 
